@@ -2,6 +2,84 @@ import pandas as pd
 import numpy as np
 import geopandas as gpd
 import matplotlib.pyplot as plt
+from shapely.strtree import STRtree
+import mapply
+from .ops import discretise_linestring, nearest_neighbor
+
+mapply.init(n_workers=-1)
+
+def _get_unique_spatial_points(points_gdf, lat_col, lon_col):
+    spatial_points_df = points_gdf.groupby([lat_col, lon_col]).agg({'gid': [len, list]}).reset_index()
+    # flatten multi level index from groupby
+    spatial_points_df.columns = [' '.join(col).strip().replace(' ', '_') for col in spatial_points_df.columns.values]
+
+    # TODO: just use point geometry not lat lon
+    sp_gdf = gpd.GeoDataFrame(
+        spatial_points_df, 
+        geometry=gpd.points_from_xy(spatial_points_df[lon_col], spatial_points_df[lat_col])
+    )
+
+    sp_gdf = sp_gdf.set_crs(epsg='4326')
+
+    return sp_gdf
+
+def static_approx_distance_linestring(points_gdf, map_gdf, flat_crs = 27700, verbose=False, map_tree = None, convert_to_flat=True):
+    discretize_size = 10
+    lat_col = 'lat'
+    lon_col = 'lon'
+
+    points_gdf = points_gdf.copy()
+    map_gdf = map_gdf.copy()
+
+    #assign gid so we can avoid spatial merge later
+    points_gdf['gid'] = points_gdf.index
+
+
+    # compute unique spatial points
+    if verbose:
+        print('Computing unique spatial points')
+
+
+    # points will be retured in 4326
+    sp_gdf = _get_unique_spatial_points(points_gdf, lat_col, lon_col)
+
+    # store geometry so it does not get overwritten
+
+    map_gdf['__geometry'] = map_gdf['geometry']
+
+    # convert geometry from linestring to points by dicreitising the lines
+
+    map_gdf['split_geom'] = map_gdf['geometry'].apply(
+        lambda geom: discretise_linestring(geom, discretize_size)
+    )
+
+
+    # Make the discretised geom the active geometry
+    map_gdf['geometry'] = map_gdf['split_geom']
+
+    # Convert multi point to point
+    exploded_map_gdf = map_gdf.explode()
+
+    # compute closest dist from the spatial points to the exploded points
+    res_df = nearest_neighbor(sp_gdf, exploded_map_gdf, return_dist=True)
+
+    sp_gdf['distance'] = res_df['distance']
+
+    # merge back onto the original dataframe
+
+    res_dissolved = sp_gdf.explode('gid_list')
+
+    merged_df = points_gdf.merge(
+        res_dissolved,
+        left_on='gid',
+        right_on='gid_list',
+        how='left',
+        suffixes = [None, '_y']
+    )
+
+    return merged_df
+
+
 
 def static_feature(points_gdf, map_gdf, buffer_size=100, flat_crs = 27700, verbose=False):
     """
@@ -27,21 +105,12 @@ def static_feature(points_gdf, map_gdf, buffer_size=100, flat_crs = 27700, verbo
     points_flat_gdf = points_gdf.to_crs({'init': f'EPSG:{flat_crs}'})
     map_flat_gdf = map_gdf.to_crs({'init': f'EPSG:{flat_crs}'})
 
-    # works well for london
     # compute unique spatial points
     if verbose:
         print('Computing unique spatial points')
 
 
-    spatial_points_df = points_flat_gdf.groupby([lat_col, lon_col]).agg({'gid': [len, list]}).reset_index()
-    # flatten multi level index from groupby
-    spatial_points_df.columns = [' '.join(col).strip().replace(' ', '_') for col in spatial_points_df.columns.values]
-
-    sp_gdf = gpd.GeoDataFrame(
-        spatial_points_df, 
-        geometry=gpd.points_from_xy(spatial_points_df['lon'], spatial_points_df['lat'])
-    )
-    sp_gdf = sp_gdf.set_crs(epsg='4326')
+    sp_gdf = _get_unique_spatial_points(points_flat_gdf, lat_col, lon_col)
     sp_gdf = sp_gdf.to_crs(epsg=flat_crs)
 
 
@@ -64,7 +133,8 @@ def static_feature(points_gdf, map_gdf, buffer_size=100, flat_crs = 27700, verbo
     res = gpd.overlay(
         map_flat_gdf, 
         sp_gdf, 
-        how='intersection'
+        how='intersection',
+        make_valid=True
     )
     #store geometry so that it does not get discarded after sjoin
     res['right_geom'] = res.geometry
@@ -88,7 +158,11 @@ def static_feature(points_gdf, map_gdf, buffer_size=100, flat_crs = 27700, verbo
     # group by spatial point id
     if verbose:
         print('Dissolving')
+        #breakpoint()
 
+
+    # Ensure geometries are valid
+    res_join['geometry'] = res_join.buffer(0.01)
 
     res_dissolved = res_join.dissolve(by='id').reset_index()
 

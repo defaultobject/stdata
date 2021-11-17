@@ -1,5 +1,6 @@
 import pickle
 import datetime
+import geopandas as gpd
 
 def datetime_to_epoch(datetime):
     """
@@ -21,3 +22,17 @@ def save_to_pickle(data, name):
 
 def read_pickle():
     pass
+
+def to_gdf(df):
+    """ Assumes lat/lon cols and espg 4326"""
+    gdf = gpd.GeoDataFrame(
+        df, 
+        geometry=gpd.points_from_xy(
+            df['lon'], 
+            df['lat']
+        )
+    )
+
+    gdf = gdf.set_crs(epsg=4326)
+
+    return gdf
