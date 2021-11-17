@@ -23,7 +23,7 @@ def _get_unique_spatial_points(points_gdf, lat_col, lon_col):
 
     return sp_gdf
 
-def static_approx_distance_linestring(points_gdf, map_gdf, flat_crs = 27700, verbose=False, map_tree = None, convert_to_flat=True):
+def static_approx_distance_linestring(points_gdf, map_gdf, flat_crs = 27700, verbose=False, map_tree = None, convert_to_flat=True, target_col='distance'):
     discretize_size = 10
     lat_col = 'lat'
     lon_col = 'lon'
@@ -63,7 +63,7 @@ def static_approx_distance_linestring(points_gdf, map_gdf, flat_crs = 27700, ver
     # compute closest dist from the spatial points to the exploded points
     res_df = nearest_neighbor(sp_gdf, exploded_map_gdf, return_dist=True)
 
-    sp_gdf['distance'] = res_df['distance']
+    sp_gdf[target_col] = res_df['distance']
 
     # merge back onto the original dataframe
 
