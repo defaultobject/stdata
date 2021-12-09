@@ -88,4 +88,23 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
 
     return closest_points
 
+def ensure_continuous_timeseries(df, dt_col='date', id_col='id', freq='H'):
+    # collect all 
+    min_dt = df[dt_col].min()
+    max_dt = df[dt_col].max()
 
+    all_dt = pd.DataFrame(
+        pd.date_range(
+            min_dt,
+            max_dt,
+            freq=freq
+        ),
+        columns=[dt_col]
+    )
+
+    all_sites = pd.DataFrame(pd.unique(df[id_col]), columns=[id_col])
+    # construct full dateframe
+    
+    full_df = all_dt.merge(all_sites, how='cross')
+    
+    return full_df.merge(df, on=[dt_col, id_col], how='outer')

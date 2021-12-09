@@ -26,6 +26,8 @@ def train_test_split_indices(N, split=0.5, seed=0):
     return rand_index[:N_tr], rand_index[N_tr:] 
 
 
+
+
 def spatial_k_fold(df, num_folds, lat_col='lat', lon_col='lon', group_col='group'):
     """ Split the points of gdf into equal area blocks """
     df = df.copy()
@@ -110,6 +112,18 @@ def spatial_k_fold(df, num_folds, lat_col='lat', lon_col='lon', group_col='group
     
 
 
+def spatial_k_fold_generator(df, num_folds, group_col='group'):
+    """ A wrapper so that spatial k fold can be used with the same syntax as sklearn k fold"""
+    class _gen():
+        def split(self, df_to_split):
+            df_to_split = np.array(df_to_split)
+            for k in range(num_folds):
+                train_index = (df[group_col] != k)
+                test_index = (df[group_col] == k)
+
+                yield df_to_split[train_index], df_to_split[test_index]
+
+    return _gen()
 
 
 

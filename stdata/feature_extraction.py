@@ -3,10 +3,7 @@ import numpy as np
 import geopandas as gpd
 import matplotlib.pyplot as plt
 from shapely.strtree import STRtree
-import mapply
 from .ops import discretise_linestring, nearest_neighbor
-
-mapply.init(n_workers=-1)
 
 def _get_unique_spatial_points(points_gdf, lat_col, lon_col):
     spatial_points_df = points_gdf.groupby([lat_col, lon_col]).agg({'gid': [len, list]}).reset_index()
