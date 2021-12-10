@@ -20,16 +20,19 @@ def _get_unique_spatial_points(points_gdf, lat_col, lon_col):
 
     return sp_gdf
 
-def static_approx_distance_linestring(points_gdf, map_gdf, flat_crs = 27700, verbose=False, map_tree = None, convert_to_flat=True, target_col='distance'):
-    discretize_size = 10
-    lat_col = 'lat'
-    lon_col = 'lon'
+def static_approx_distance_linestring(points_gdf, map_gdf, flat_crs = 27700, verbose=False, map_tree = None, convert_to_flat=True, target_col='distance', direction='right', discretize_size=10, lat_col = 'lat', lon_col = 'lon'):
+    """
+    if direction is right compute distance from points_gdf -> map_gdf
+    otherwise compute distance from points_gdf <- map_gdf
+    """
+
 
     points_gdf = points_gdf.copy()
     map_gdf = map_gdf.copy()
 
     #assign gid so we can avoid spatial merge later
     points_gdf['gid'] = points_gdf.index
+    map_gdf['map_gid'] = map_gdf.index
 
 
     # compute unique spatial points
@@ -57,24 +60,52 @@ def static_approx_distance_linestring(points_gdf, map_gdf, flat_crs = 27700, ver
     # Convert multi point to point
     exploded_map_gdf = map_gdf.explode()
 
-    # compute closest dist from the spatial points to the exploded points
-    res_df = nearest_neighbor(sp_gdf, exploded_map_gdf, return_dist=True)
+    if direction == 'right':
+        # compute closest dist from the spatial points to the exploded points
+        res_df = nearest_neighbor(sp_gdf, exploded_map_gdf, return_dist=True)
 
-    sp_gdf[target_col] = res_df['distance']
+        sp_gdf[target_col] = res_df['distance']
 
-    # merge back onto the original dataframe
+        # merge back onto the original dataframe
 
-    res_dissolved = sp_gdf.explode('gid_list')
+        res_dissolved = sp_gdf.explode('gid_list')
 
-    merged_df = points_gdf.merge(
-        res_dissolved,
-        left_on='gid',
-        right_on='gid_list',
-        how='left',
-        suffixes = [None, '_y']
-    )
+        merged_df = points_gdf.merge(
+            res_dissolved,
+            left_on='gid',
+            right_on='gid_list',
+            how='left',
+            suffixes = [None, '_y']
+        )
 
-    return merged_df
+        return merged_df
+    else:
+        exploded_map_gdf = exploded_map_gdf.reset_index()
+        # compute closest dist from the spatial points to the exploded points
+        res_df = nearest_neighbor(exploded_map_gdf, sp_gdf, return_dist=True)
+
+        res_df['map_gid'] = exploded_map_gdf['map_gid']
+
+        res_df = res_df.iloc[res_df.groupby('map_gid')['distance'].idxmin()]
+
+        merged_df = map_gdf.merge(
+            res_df,
+            on = 'map_gid',
+            how='left',
+            suffixes=[None, '_y']
+        )
+
+        merged_dissolved = merged_df.explode('gid_list')
+
+        merged_df = merged_dissolved.merge(
+            points_gdf,
+            left_on='gid_list',
+            right_on='gid',
+            how='left',
+            suffixes = [None, '_y']
+        )
+
+        return merged_df
 
 
 
