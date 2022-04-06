@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
 import geopandas as gpd
-import matplotlib.pyplot as plt
 from shapely.strtree import STRtree
 from .ops import discretise_linestring, nearest_neighbor
+from .utils import flatten_pd_index, flatten_2d_list
 
 def _get_unique_spatial_points(points_gdf, lat_col, lon_col):
     spatial_points_df = points_gdf.groupby([lat_col, lon_col]).agg({'gid': [len, list]}).reset_index()
@@ -20,12 +20,11 @@ def _get_unique_spatial_points(points_gdf, lat_col, lon_col):
 
     return sp_gdf
 
-def static_approx_distance_linestring(points_gdf, map_gdf, flat_crs = 27700, verbose=False, map_tree = None, convert_to_flat=True, target_col='distance', direction='right', discretize_size=10, lat_col = 'lat', lon_col = 'lon'):
+def static_approx_distance_linestring(points_gdf, map_gdf, flat_crs = 27700, verbose=False, map_tree = None, convert_to_flat=True, target_col=['distance'], direction='right', discretize_size=10, lat_col = 'lat', lon_col = 'lon', extract_columns=['distance']):
     """
     if direction is right compute distance from points_gdf -> map_gdf
     otherwise compute distance from points_gdf <- map_gdf
     """
-
 
     points_gdf = points_gdf.copy()
     map_gdf = map_gdf.copy()
@@ -64,7 +63,8 @@ def static_approx_distance_linestring(points_gdf, map_gdf, flat_crs = 27700, ver
         # compute closest dist from the spatial points to the exploded points
         res_df = nearest_neighbor(sp_gdf, exploded_map_gdf, return_dist=True)
 
-        sp_gdf[target_col] = res_df['distance']
+        for i, col in enumerate(extract_columns):
+            sp_gdf[target_col[i]] = res_df[col]
 
         # merge back onto the original dataframe
 
@@ -109,7 +109,7 @@ def static_approx_distance_linestring(points_gdf, map_gdf, flat_crs = 27700, ver
 
 
 
-def static_feature(points_gdf, map_gdf, buffer_size=100, flat_crs = 27700, verbose=False):
+def static_feature(points_gdf, map_gdf, buffer_size=100, flat_crs = 27700, verbose=False, convert_to_flat=True, agg_fn=None, features_to_extract: dict = {}):
     """
     Extract features from map_gdf for each spatial point in points_gdf. 
     This done by computing a buffer around each point and finding the intersection of these with map_gdf.
@@ -124,14 +124,18 @@ def static_feature(points_gdf, map_gdf, buffer_size=100, flat_crs = 27700, verbo
     points_crs = points_gdf.crs
     map_crs = map_gdf.crs
 
-    # convert to crs 27700 so we can work in meters 
-    # epsg:27700 is good for England
+    if convert_to_flat:
+        # convert to crs 27700 so we can work in meters 
+        # epsg:27700 is good for England
 
-    if verbose:
-        print('Converting to flat crs')
+        if verbose:
+            print('Converting to flat crs')
 
-    points_flat_gdf = points_gdf.to_crs({'init': f'EPSG:{flat_crs}'})
-    map_flat_gdf = map_gdf.to_crs({'init': f'EPSG:{flat_crs}'})
+        points_flat_gdf = points_gdf.to_crs({'init': f'EPSG:{flat_crs}'})
+        map_flat_gdf = map_gdf.to_crs({'init': f'EPSG:{flat_crs}'})
+    else:
+        points_flat_gdf = points_gdf.copy()
+        map_flat_gdf = map_gdf.copy()
 
     # compute unique spatial points
     if verbose:
@@ -186,35 +190,42 @@ def static_feature(points_gdf, map_gdf, buffer_size=100, flat_crs = 27700, verbo
     # group by spatial point id
     if verbose:
         print('Dissolving')
-        #breakpoint()
 
-
-    # Ensure geometries are valid
-    res_join['geometry'] = res_join.buffer(0.01)
-
-    res_dissolved = res_join.dissolve(by='id').reset_index()
-
-    res_dissolved = res_dissolved.rename(
+    res_join = res_join.rename(
         columns={
             'gid_list_left':'gid_list',
             'buffer_geom_left':'buffer_geom',
         }
     )
 
-    res_dissolved = res_dissolved[['id', 'gid_list', 'buffer_geom', 'geometry']]
+
+    # extract features based on geometry
+    for key, fn in features_to_extract.items():
+        res_join[key] = fn(res_join)
 
     # compute statistics
     if verbose:
         print('Computing statistics')
 
-    res_dissolved['length']  = res_dissolved.geometry.length
 
-    # merge back onto the original dataframe
+    agg_fn['gid_list'] = list
 
-    res_dissolved = res_dissolved.explode('gid_list')
+    res_grouped = res_join.groupby('id').agg(agg_fn).reset_index()
+    res_grouped = flatten_pd_index(res_grouped)
+
+    res_grouped = res_grouped.rename(
+        columns={
+            'gid_list_list':'gid_list'
+        }
+    )
+
+    res_grouped['gid_list'] = res_grouped['gid_list'].apply(flatten_2d_list)
+    res_grouped['gid_list'] = res_grouped['gid_list'].apply(lambda x: list(set(x)))
+
+    res_exploded = res_grouped.explode('gid_list')
 
     merged_df = points_gdf.merge(
-        res_dissolved,
+        res_exploded,
         left_on='gid',
         right_on='gid_list',
         how='left',
