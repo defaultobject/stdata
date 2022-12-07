@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from shapely.geometry import Polygon, Point
+
 import geopandas as gpd
 from geopandas import GeoSeries
 
@@ -8,6 +8,9 @@ from .feature_extraction import _get_unique_spatial_points
 import sklearn
 from sklearn import cluster
 from sklearn.metrics import pairwise_distances
+
+from tqdm import tqdm
+
 
 def normalise(x, wrt_to):
     return (x - np.mean(wrt_to))/np.std(wrt_to)
@@ -40,6 +43,9 @@ def train_test_split_indices(N, split=0.5, seed=0):
 
 def spatial_k_fold(df, num_folds, lat_col='lat', lon_col='lon', group_col='group'):
     """ Split the points of gdf into equal area blocks """
+    from shapely.geometry import Polygon, Point
+
+
     df = df.copy()
 
     #assign gid so we can avoid spatial merge later
@@ -132,7 +138,10 @@ def spatial_k_fold_generator(df, num_folds, group_col='group'):
 
     return _gen()
 
-def _equal_k_means(df, n_clusters=5):
+def _equal_k_means(df, n_clusters=5, verbose=False):
+    """
+    This uses a greedy algorithm, and so although each cluster will be equal, it may not be spatially aligned.
+    """
     df = df.copy().reset_index()
     
     df['__index'] = df.index
@@ -148,12 +157,20 @@ def _equal_k_means(df, n_clusters=5):
     assigned_ids = []
 
     N = X.shape[0]
+
+    dists_all = [dists[c].argsort() for c in range(n_clusters)]
     
-    while True:  
+    # each step assigns n_cluster points to assigned_ids
+    num_iters = int(np.ceil(N/float(n_clusters)))
+
+    if verbose:
+        bar = tqdm(total=num_iters)
+
+    for i in range(num_iters):
         for c in range(n_clusters):
 
             # find closest point
-            all_closest_points = dists[c].argsort()
+            all_closest_points = dists_all[c]
             
             closest_points = all_closest_points[~np.isin(all_closest_points,assigned_ids)]
             closest_point = closest_points[0]
@@ -191,6 +208,9 @@ def _equal_k_means(df, n_clusters=5):
                 
         if len(assigned_ids) == N:
             break
+
+        if verbose:
+         bar.update(1)
             
     cluster_df = pd.DataFrame(
         [[i, c] for c, a in clusters.items() for i in a], 
@@ -204,7 +224,7 @@ def _equal_k_means(df, n_clusters=5):
     
     return df
 
-def equal_spatial_clusters(df, n_clusters=5, lat_col='lat', lon_col='lon', group_col='label'):
+def equal_spatial_clusters(df, n_clusters=5, lat_col='lat', lon_col='lon', group_col='label', verbose=False):
     df = df.copy().reset_index()
 
     #assign gid so we can avoid spatial merge later
@@ -212,7 +232,7 @@ def equal_spatial_clusters(df, n_clusters=5, lat_col='lat', lon_col='lon', group
 
     sp_gdf = _get_unique_spatial_points(df, lat_col, lon_col)
 
-    sp_gdf = _equal_k_means(sp_gdf, n_clusters)
+    sp_gdf = _equal_k_means(sp_gdf, n_clusters, verbose=verbose)
 
     # merge spatial points back onto orginal dataframe
     res_dissolved = sp_gdf.explode('gid_list')
@@ -291,3 +311,72 @@ def equal_spatial_clusters_with_support(df, support_df, lat_col='lat', lon_col='
     merged_df[group_col] = merged_df[group_col].fillna(-1)
 
     return merged_df
+
+
+def train_test_split_with_only_one_missing_task(split_percent, X, Y, seed=None):
+    """
+    Train-test split support for multi-tasks.
+
+    We want to measure the performance of when we have AT LEAST one output
+       so we first get a random choice of N * (10 * P / 100), because we are treating them randomly
+    """ 
+    #Y must be a float to support nans
+    Y = np.copy(Y).astype(float)
+    X = np.copy(X)
+
+    N, P = Y.shape
+    N_across_all_groups = int(N*(split_percent * P / 100))
+
+    if N < N_across_all_groups:
+        raise RuntimeError('There are too many tasks, try lowering the split percent?')
+
+    train_indexes = list(range(N))
+
+    if seed is not None:
+        np.random.seed(seed)
+
+    test_indexes = np.random.choice(range(N), N_across_all_groups, replace=False)
+
+    # split into sets of disjoint <split_percent> testing sets
+    # This forces equal sized groupes
+    # i.e not all of the N_across_all_groups may be used
+    test_index_list = [
+        test_indexes[int(N_across_all_groups/P) * i: int(N_across_all_groups/P) * (i + 1)]
+        for i in range(P)
+    ]
+    # should be unique
+    assert np.unique(test_index_list).shape[0] == np.prod(np.array(test_index_list).shape)
+
+    # construct training indexes
+
+    train_index_list = [
+        list(set(train_indexes) - set(test_index_list[i])) 
+        for i in range(P) 
+    ]
+
+    # construct train sets
+    Y_train = Y.copy()
+    for p in range(P):
+        Y_train[test_index_list[p], p] = np.NaN
+
+    # should only be one nan in each row
+    assert np.any(np.sum(np.isnan(Y), axis=1) > 1) == False
+
+    # Construct testing sets
+    Y_test = Y.copy()
+    X_test = X.copy()
+
+    # reverse the setting of NaNs as now we want ONLY want to validate p
+    for p in range(P):
+        col_index_without_p = list(set(range(P)) - set([p]))
+        Y_test[np.ix_(test_index_list[p], col_index_without_p)] = np.NaN
+
+    # for testing only select colums with nans 
+    data_test_index = np.any(np.isnan(Y_train), axis=1)
+
+    # only select testing locations
+    X_test = X[data_test_index].copy()
+    Y_test = Y_test[data_test_index]
+
+    return X, Y_train, X_test, Y_test, data_test_index
+
