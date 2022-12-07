@@ -1,5 +1,1 @@
-scikit-learn
-pandas 
-numpy
-geopandas
-tqdm
+.
