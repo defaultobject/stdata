@@ -16,5 +16,6 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires='>=3.6',
+    install_requires = [line.strip() for line in open("requirements.txt").readlines()]
 )
 
