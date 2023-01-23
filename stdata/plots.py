@@ -3,12 +3,11 @@ import pandas as pd
 
 def grid_to_matrix(X, Y, x_col='lon', y_col='lat'):
     """
-    X is an N by D grid. Return Y in a matrix with corresponding extents
+    X is a dataframe that holds a flattened N by D grid. Return Y in a matrix with corresponding extents
     Assumes that origin is lower left
     e.g.
         plt.imshow(Y_mat, extent=extents, origin='lower'
     """
-
     
     sort_idx = np.lexsort([X[x_col], X[y_col]])
 
