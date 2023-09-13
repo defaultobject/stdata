@@ -5,7 +5,7 @@ setuptools.setup(
     version="0.0.1",
     author="O Hamelijnck",
     author_email="ohamelijnck@turing.ac.uk",
-    description="Standard OPs for space time data",
+    description="Standard OPs for space time data and models",
     long_description="",
     long_description_content_type="text/markdown",
     url="N/A",
@@ -20,8 +20,13 @@ setuptools.setup(
         "scikit-learn",
         "pandas ",
         "numpy",
-        "geopandas",
         "tqdm"
-    ]
+    ],
+    extras_require = {
+        'gis': [
+            "geopandas",
+            "shapely",
+        ]
+    },
 )
 

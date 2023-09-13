@@ -8,7 +8,10 @@ from sklearn.neighbors import BallTree
 
 def _interp(xs, x1, x2, y1, y2) -> 'Point':
     def _intp(x, x1, x2, y1, y2):
-        m = (y2-y1)/(x2-x1)
+        if x2-x1 == 0:
+            m = 0
+        else:
+            m = (y2-y1)/(x2-x1)
         return Point(x, m*(x-x1) + y1)
     
     return [_intp(x, x1, x2, y1, y2) for x in xs]
@@ -18,8 +21,13 @@ def discretise_linestring(linestring_geom: 'LineString', steps: int) -> 'MultiPo
     num_points = len(points)
     all_points = []
     for p in range(num_points-1):
-        x1,y1,_ = points[p]
-        x2,y2,_ = points[p+1]
+        if len(points[p]) == 3:
+            x1,y1,_ = points[p]
+            x2,y2,_ = points[p+1]
+        else:
+            x1,y1 = points[p]
+            x2,y2 = points[p+1]
+
         x_spaced = np.linspace(x1, x2, steps)
 
         all_points = all_points + _interp(x_spaced, x1, x2, y1, y2)

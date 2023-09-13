@@ -1,6 +1,6 @@
 """ Common functions that are usually required for runnign experiments. """
 import numpy as np
-from tqdm import tqdm
+from tqdm import tqdm, trange
 
 def batch_predict(XS, prediction_fn=None, batch_size=1000, verbose=False, axis=0, ci=False, concat=True):
     # Ensure batch is less than the number of test points
@@ -81,13 +81,17 @@ def slice_array_insert(A,B, arr):
     return A
 
 
-def st_batch_predict(model , XS, prediction_fn=None, batch_size=5000, verbose=False):
+def st_batch_predict(model , XS, prediction_fn=None, batch_size=5000, verbose=False, out_dim=1, transpose_pred=False):
     """
         With KF models the prediction data must be at all timesteps. This function
             breaks up the space-time data into space-time batches (which spans across all time points)
+
+        Args:
+            batch_size: int - number of spatial points to process at a time
     """
     #sort XS into grid/'kronecker' structure
 
+    XS_start = XS
     XS = np.roll(XS, -1, axis=1)
     #sort by time points
     grid_idx = np.lexsort(XS.T)
@@ -106,7 +110,7 @@ def st_batch_predict(model , XS, prediction_fn=None, batch_size=5000, verbose=Fa
     #number of spatial points that fit into batch
 
     #num_spatial_points_per_batch = int(np.floor(batch_size/num_time_points))
-    num_spatial_points_per_batch = batch_size
+    num_spatial_points_per_batch = min(batch_size, num_spatial_points)
 
     num_steps = max(1, int(np.floor(num_spatial_points/num_spatial_points_per_batch)))
 
@@ -117,7 +121,7 @@ def st_batch_predict(model , XS, prediction_fn=None, batch_size=5000, verbose=Fa
         print('num_spatial_points_per_batch: ', num_spatial_points_per_batch)
 
     #empty prediction data
-    mean = np.zeros([XS.shape[0], 1])
+    mean = np.zeros([XS.shape[0], out_dim])
     var = np.zeros_like(mean)
 
     for i in trange(num_steps):
@@ -143,8 +147,12 @@ def st_batch_predict(model , XS, prediction_fn=None, batch_size=5000, verbose=Fa
         else:
             _mean, _var = model.predict_y(_XS, diagonal_var=True)
 
-        _mean = np.squeeze(_mean).reshape([-1, 1])
-        _var = np.squeeze(_var).reshape([-1, 1])
+        if transpose_pred:
+            _mean = np.squeeze(_mean).T
+            _var = np.squeeze(_var).T
+
+        _mean = np.squeeze(_mean).reshape([-1, out_dim])
+        _var = np.squeeze(_var).reshape([-1, out_dim])
 
         mean = slice_array_insert(mean, _mean, step_idx)
         var = slice_array_insert(var, _var, step_idx)

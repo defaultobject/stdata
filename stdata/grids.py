@@ -26,6 +26,7 @@ def create_geopandas_spatial_grid(xmin, xmax, ymin, ymax, cell_size_x, cell_size
     import geopandas
     import shapely
 
+    # created in x-y format
     # create the cells in a loop
     grid_cells = []
     for x0 in np.arange(xmin, xmax-cell_size_x, cell_size_x ):
