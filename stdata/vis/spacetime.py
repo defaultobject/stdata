@@ -208,8 +208,8 @@ class ST_SliderPlot(object):
             self.callback = callback
 
         def set_text_format(self):
-            self.slider.valtext.set_text(
-                datetime.fromtimestamp(self.slider.val).strftime("%Y-%m-%d %H")
+            self.valtext.set_text(
+                datetime.fromtimestamp(self.val).strftime("%Y-%m-%d %H")
             )
 
         def setup(self, start_val):
