@@ -1,11 +1,13 @@
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from datetime import datetime
+from matplotlib.collections import PatchCollection
 from matplotlib.patches import Polygon
 import geopandas
-import shapely.geometry as sg
+import shapely
 
 
 def plot_polygon_collection(
@@ -18,24 +20,29 @@ def plot_polygon_collection(
     edgecolor=None,
     alpha=1.0,
     linewidth=1.0,
-    **kwargs,
+    **kwargs
 ):
-    """Plot a collection of Polygon geometries"""
+    """ Plot a collection of Polygon geometries """
     patches = []
 
     for poly in geoms:
-        a = np.asarray(poly.exterior)
+        #a = np.asarray(poly.geoms[0].exterior)
+        #a = np.asarray(poly.exterior)
+        a = np.asarray(poly.exterior.xy).T
+
+        if poly.has_z:
+            poly = shapely.geometry.Polygon(zip(*poly.geoms[0].exterior.xy))
 
         patches.append(Polygon(a))
 
-    patches = plt.PatchCollection(
+    patches = PatchCollection(
         patches,
         facecolor=facecolor,
         linewidth=linewidth,
         edgecolor=edgecolor,
         alpha=alpha,
         norm=norm,
-        **kwargs,
+        **kwargs
     )
 
     if values is not None:
@@ -93,6 +100,7 @@ class ST_GridPlot(object):
         if x_train is None:
             return None, None
 
+        print(z_train.shape)
         z_train = np.array(z_train)
 
         s = np.c_[x_train, y_train]
@@ -109,7 +117,7 @@ class ST_GridPlot(object):
         if self.norm_on_training:
             df = self.train_df
 
-        self.norm = plt.Normalize(
+        self.norm = matplotlib.colors.Normalize(
             vmin=np.min(df[self.columns[self.col]]),
             vmax=np.max(df[self.columns[self.col]]),
         )
@@ -124,6 +132,7 @@ class ST_GridPlot(object):
 
     def update(self, epoch):
         if self.geopandas_flag:
+
             # If grid_plot is init with zero patches then we need to create them
             if self.grid_plot is None:
                 self.plot(epoch)
@@ -234,8 +243,11 @@ class ST_TimeSeriesPlot(object):
     def setup(self):
         pass
 
-        def get_time_series(self, _id, data):
+    def get_time_series(self, _id, data):
         d = self.train_df[self.train_df[self.columns["id"]] == _id]
+
+        print(f'Plotting timeseries: {_id}')
+
 
         d = d.sort_values(by=self.columns["epoch"])
 
@@ -249,9 +261,7 @@ class ST_TimeSeriesPlot(object):
     def plot(self, _id):
         epochs, var, pred, observed = self.get_time_series(_id, self.train_df)
 
-        self.var_plot = self.ax.fill_between(
-            epochs, pred - 1.96 * np.sqrt(var), pred + 1.96 * np.sqrt(var)
-        )
+        self.var_plot = self.ax.fill_between(epochs, pred - 1.96*np.sqrt(var), pred + 1.96*np.sqrt(var))
         self.observed_scatter = self.ax.scatter(epochs, observed)
         self.pred_plot = self.ax.plot(epochs, pred)
         self.ax.set_xlim([self.min_test_epoch, self.max_test_epoch])
@@ -289,7 +299,9 @@ class ST_ScatterPlot(object):
         if grid_plot_flag:
             self.norm = grid_plot.norm
         else:
-            self.norm = plt.Normalize(
+            print("min: ", np.min(self.train_df[self.columns["pred"]]))
+            print("max: ", np.max(self.train_df[self.columns["pred"]]))
+            self.norm = matplotlib.colors.Normalize(
                 vmin=np.min(self.train_df[self.columns["pred"]]), vmax=1000
             )
 
@@ -306,6 +318,7 @@ class ST_ScatterPlot(object):
         )
         dists = np.sum((d - p) ** 2, axis=1)
         i = np.argmin(dists)
+        #if dists[i] <= 1e-4:
         if dists[i] <= 0.02:
             return self.train_df.iloc[i][self.columns["id"]]
         else:
@@ -356,9 +369,7 @@ class ST_ScatterPlot(object):
 
 
 class SpaceTimeVisualise(object):
-    def __init__(
-        self, train_df, test_df, sat_df=None, geopandas_flag=True, test_start=None
-    ):
+    def __init__(self, train_df, test_df, sat_df=None, geopandas_flag=True, test_start=None):
         columns = {
             "id": "id",
             "epoch": "epoch",
@@ -378,7 +389,7 @@ class SpaceTimeVisualise(object):
 
         self.grid_plot_flag = not (self.test_df is None)
 
-        s        self.min_time = np.min(self.train_df[columns["epoch"]])
+        self.min_time = np.min(self.train_df[columns["epoch"]])
         self.max_time = np.max(self.train_df[columns["epoch"]])
 
         if test_start:
@@ -408,7 +419,7 @@ class SpaceTimeVisualise(object):
     def show(self):
         self.fig = plt.figure(figsize=(12, 6))
 
-        self.gs = plt.GridSpec(12, 4, wspace=0.25, hspace=0.25)
+        self.gs = matplotlib.gridspec.GridSpec(12, 4, wspace=0.25, hspace=0.25)
         self.grid_plot_1_ax = self.fig.add_subplot(
             self.gs[0:7, 0:2]
         )  # first row, first col
@@ -482,6 +493,7 @@ class SpaceTimeVisualise(object):
         )
         self.time_series_plot.setup()
 
+
         if self.grid_plot_flag:
             self.val_grid_plot.plot(self.start_epoch)
             self.var_grid_plot.plot(self.start_epoch)
@@ -494,9 +506,8 @@ class SpaceTimeVisualise(object):
         self.val_scatter_plot.plot_active(self.start_id)
 
         if self.sat_df is not None:
-            self.time_series_plot.ax.scatter(
-                self.sat_df["epoch"], self.sat_df[self.columns["observed"]], alpha=0.4
-            )
+            self.time_series_plot.ax.scatter(self.sat_df['epoch'], self.sat_df[self.columns['observed']], alpha=0.4)
+
 
         plt.show()
 
