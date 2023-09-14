@@ -278,11 +278,16 @@ class ST_TimeSeriesPlot(object):
         self.plot_cur_epoch(epoch)
 
     def update(self, _id):
-        self.var_plot.remove()
-        self.observed_scatter.remove()
-        self.ax.lines.remove(self.pred_plot[0])
-        self.min_line.remove()
-        self.max_line.remove()
+        try:
+            self.var_plot.remove()
+            self.observed_scatter.remove()
+            self.pred_plot[0].remove()
+            self.min_line.remove()
+            self.max_line.remove()
+        except ValueError as e:
+            # already been removed so need to remove again
+            pass
+
         self.plot(_id)
 
 
