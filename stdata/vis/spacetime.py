@@ -306,8 +306,8 @@ class ST_ScatterPlot(object):
             self.norm = grid_plot.norm
         else:
             self.norm = matplotlib.colors.Normalize(
-                print("min: ", np.min(self.train_df[self.columns["pred"]]))
-                print("max: ", np.max(self.train_df[self.columns["pred"]]))
+                print("min: ", np.min(self.train_df[self.columns["pred"]])),
+                print("max: ", np.max(self.train_df[self.columns["pred"]])),
                 vmin=np.min(self.train_df[self.columns["pred"]]), vmax=np.max(self.train_df[self.columns["pred"]])
             )
 
