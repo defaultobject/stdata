@@ -199,28 +199,35 @@ class ST_GridPlot(object):
             )
 
         return self.grid_plot
+    
+    class ST_SliderPlot(object):
+        def __init__(self, fig, ax, unique_vals, callback):
+            self.fig = fig
+            self.ax = ax
+            self.unique_vals = unique_vals
+            self.callback = callback
 
+        def set_text_format(self):
+            self.slider.valtext.set_text(
+                datetime.fromtimestamp(self.slider.val).strftime("%Y-%m-%d %H")
+            )
 
-class ST_SliderPlot(object):
-    def __init__(self, fig, ax, unique_vals, callback):
-        self.fig = fig
-        self.ax = ax
-        self.unique_vals = unique_vals
-        self.callback = callback
+        def setup(self, start_val):
+            self.slider = widgets.Slider(
+                self.ax,
+                "Date",
+                np.min(self.unique_vals),
+                np.max(self.unique_vals),
+                valinit=start_val,
+            )
+            self.set_text_format()
+            self.slider.on_changed(self.update)
 
-        self.slider = widgets.Slider(
-            self.ax,
-            "Date",
-            np.min(self.unique_vals),
-            np.max(self.unique_vals),
-            valinit=unique_vals[0],
-        )
-        self.slider.on_changed(self.update)
-
-    def update(self, i):
-        cur_epoch_i = np.abs(self.unique_vals - i).argmin()
-        cur_epoch = self.unique_vals[cur_epoch_i]
-        self.callback(cur_epoch)
+        def update(self, i):
+            cur_epoch_i = np.abs(self.unique_vals - i).argmin()
+            cur_epoch = self.unique_vals[cur_epoch_i]
+            self.set_text_format()
+            self.callback(cur_epoch)
 
 
 class ST_TimeSeriesPlot(object):
