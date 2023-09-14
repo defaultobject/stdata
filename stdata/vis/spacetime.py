@@ -20,18 +20,15 @@ def plot_polygon_collection(
     edgecolor=None,
     alpha=1.0,
     linewidth=1.0,
-    **kwargs,
+    **kwargs
 ):
-    """ Plot a collection of Polygon geometries """
+    """Plot a collection of Polygon geometries"""
     patches = []
 
     for poly in geoms:
-        #a = np.asarray(poly.geoms[0].exterior)
-        #a = np.asarray(poly.exterior)
         a = np.asarray(poly.exterior.xy).T
-
         if poly.has_z:
-            poly = shapely.geometry.Polygon(zip(*poly.geoms[0].exterior.xy))
+            poly = shapely.geometry.Polygon(poly.exterior.xy, z=poly.z)
 
         patches.append(Polygon(a))
 
@@ -48,6 +45,7 @@ def plot_polygon_collection(
     if values is not None:
         patches.set_array(values)
         patches.set_cmap(colormap)
+
     ax.add_collection(patches, autolim=True)
     ax.autoscale_view()
     return patches
