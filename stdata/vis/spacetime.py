@@ -406,94 +406,94 @@ class SpaceTimeVisualise(object):
         self.time_series_plot.update_cur_epoch(epoch)
         self.val_scatter_plot.update(epoch)
     
-def show(self):
-        self.fig = plt.figure(figsize=(12, 6))
+    def show(self):
+            self.fig = plt.figure(figsize=(12, 6))
 
-        self.gs = matplotlib.gridspec.GridSpec(12, 4, wspace=0.25, hspace=0.25)
-        self.grid_plot_1_ax = self.fig.add_subplot(
-            self.gs[0:7, 0:2]
-        )  # first row, first col
-        self.grid_plot_2_ax = self.fig.add_subplot(
-            self.gs[0:7, 2:4]
-        )  # first row, second col
-        self.epoch_slider_ax = self.fig.add_subplot(
-            self.gs[7, 1:3]
-        )  # first row, second col
-        self.time_series_ax = self.fig.add_subplot(self.gs[8:11, :])  # full second row
-        self.scale_slider_ax = self.fig.add_subplot(
-            self.gs[11, 1:3]
-        )  # first row, second col
+            self.gs = matplotlib.gridspec.GridSpec(12, 4, wspace=0.25, hspace=0.25)
+            self.grid_plot_1_ax = self.fig.add_subplot(
+                self.gs[0:7, 0:2]
+            )  # first row, first col
+            self.grid_plot_2_ax = self.fig.add_subplot(
+                self.gs[0:7, 2:4]
+            )  # first row, second col
+            self.epoch_slider_ax = self.fig.add_subplot(
+                self.gs[7, 1:3]
+            )  # first row, second col
+            self.time_series_ax = self.fig.add_subplot(self.gs[8:11, :])  # full second row
+            self.scale_slider_ax = self.fig.add_subplot(
+                self.gs[11, 1:3]
+            )  # first row, second col
 
-        if self.grid_plot_flag:
-            self.val_grid_plot = ST_GridPlot(
+            if self.grid_plot_flag:
+                self.val_grid_plot = ST_GridPlot(
+                    self.columns,
+                    "pred",
+                    self.fig,
+                    self.grid_plot_1_ax,
+                    self.train_df,
+                    self.test_df,
+                    cax_on_right=False,
+                    norm_on_training=True,
+                    label="NO2",
+                    geopandas_flag=self.geopandas_flag,
+                )
+                self.val_grid_plot.setup()
+
+                self.var_grid_plot = ST_GridPlot(
+                    self.columns,
+                    "var",
+                    self.fig,
+                    self.grid_plot_2_ax,
+                    self.train_df,
+                    self.test_df,
+                    cax_on_right=False,
+                    norm_on_training=True,
+                    label="NO2",
+                    geopandas_flag=self.geopandas_flag,
+                )
+                self.var_grid_plot.setup()
+            else:
+                self.val_grid_plot = None
+                self.var_grid_plot = None
+
+            self.val_scatter_plot = ST_ScatterPlot(
                 self.columns,
-                "pred",
                 self.fig,
                 self.grid_plot_1_ax,
+                self.val_grid_plot,
+                self.grid_plot_flag,
+                self.update_timeseries,
                 self.train_df,
-                self.test_df,
-                cax_on_right=False,
-                norm_on_training=True,
-                label="NO2",
-                geopandas_flag=self.geopandas_flag,
             )
-            self.val_grid_plot.setup()
+            self.val_scatter_plot.setup()
 
-            self.var_grid_plot = ST_GridPlot(
+            self.slider_plot = ST_SliderPlot(
+                self.fig, self.epoch_slider_ax, self.unique_epochs, self.update_epoch
+            )
+            self.slider_plot.setup(self.start_epoch)
+
+            self.time_series_plot = ST_TimeSeriesPlot(
                 self.columns,
-                "var",
                 self.fig,
-                self.grid_plot_2_ax,
+                self.time_series_ax,
                 self.train_df,
                 self.test_df,
-                cax_on_right=False,
-                norm_on_training=True,
-                label="NO2",
-                geopandas_flag=self.geopandas_flag,
+                self.test_start,
+                self.grid_plot_flag,
             )
-            self.var_grid_plot.setup()
-        else:
-            self.val_grid_plot = None
-            self.var_grid_plot = None
+            self.time_series_plot.setup()
 
-        self.val_scatter_plot = ST_ScatterPlot(
-            self.columns,
-            self.fig,
-            self.grid_plot_1_ax,
-            self.val_grid_plot,
-            self.grid_plot_flag,
-            self.update_timeseries,
-            self.train_df,
-        )
-        self.val_scatter_plot.setup()
+            if self.grid_plot_flag:
+                self.val_grid_plot.plot(self.start_epoch)
+                self.var_grid_plot.plot(self.start_epoch)
 
-        self.slider_plot = ST_SliderPlot(
-            self.fig, self.epoch_slider_ax, self.unique_epochs, self.update_epoch
-        )
-        self.slider_plot.setup(self.start_epoch)
+            self.val_scatter_plot.plot(self.start_epoch)
 
-        self.time_series_plot = ST_TimeSeriesPlot(
-            self.columns,
-            self.fig,
-            self.time_series_ax,
-            self.train_df,
-            self.test_df,
-            self.test_start,
-            self.grid_plot_flag,
-        )
-        self.time_series_plot.setup()
+            self.time_series_plot.plot_cur_epoch(self.start_epoch)
+            self.time_series_plot.plot(self.start_id)
 
-        if self.grid_plot_flag:
-            self.val_grid_plot.plot(self.start_epoch)
-            self.var_grid_plot.plot(self.start_epoch)
+            self.val_scatter_plot.plot_active(self.start_id)
 
-        self.val_scatter_plot.plot(self.start_epoch)
+            self.slider_plot.on_changed(self.update_epoch)
 
-        self.time_series_plot.plot_cur_epoch(self.start_epoch)
-        self.time_series_plot.plot(self.start_id)
-
-        self.val_scatter_plot.plot_active(self.start_id)
-
-        self.slider_plot.on_changed(self.update_epoch)
-
-        plt.show()
+            plt.show()
