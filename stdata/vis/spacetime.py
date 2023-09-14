@@ -1,11 +1,14 @@
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.widgets as widgets
 from matplotlib.widgets import Slider
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from datetime import datetime
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Polygon
+import matplotlib.colors
+import matplotlib.patches as mpatches
 import geopandas
 import shapely
 
@@ -13,9 +16,8 @@ import shapely
 def plot_polygon_collection(
     ax,
     geoms,
-    norm,
+    cmap="viridis",
     values=None,
-    colormap="Set1",
     facecolor=None,
     edgecolor=None,
     alpha=1.0,
@@ -26,9 +28,7 @@ def plot_polygon_collection(
     patches = []
 
     for poly in geoms:
-        #a = np.asarray(poly.geoms[0].exterior)
-        #a = np.asarray(poly.exterior)
-        a = np.asarray(poly.exterior.xy).T
+        a = np.asarray(poly.exterior.xy)
 
         if poly.has_z:
             poly = shapely.geometry.Polygon(zip(*poly.geoms[0].exterior.xy))
@@ -41,13 +41,12 @@ def plot_polygon_collection(
         linewidth=linewidth,
         edgecolor=edgecolor,
         alpha=alpha,
-        norm=norm,
+        cmap=cmap,
         **kwargs
     )
 
     if values is not None:
         patches.set_array(values)
-        patches.set_cmap(colormap)
 
     ax.add_collection(patches, autolim=True)
     ax.autoscale_view()
@@ -127,7 +126,6 @@ class ST_GridPlot(object):
         dir_str = "left"
         if self.right_flag:
             dir_str = "right"
-
         self.color_bar_ax = self.divider.append_axes(dir_str, size="5%", pad=0.05)
 
     def update(self, epoch):
@@ -167,9 +165,16 @@ class ST_GridPlot(object):
                 return
 
             df = df.sort_values(self.columns["id"])
-            geo_series = geopandas.GeoSeries(df["geom"])
-            self.grid_plot = plot_polygon_collection(self.ax, geo_series, self.norm)
-            self.grid_plot.set_array(df[self.columns[self.col]])
+            geoms = df["geom"]
+            self.grid_plot = plot_polygon_collection(
+                self.ax,
+                geoms,
+                cmap=self.cmap,
+                norm=self.norm,
+                shading="auto",
+                edgecolor="white",
+                linewidths=0.2,
+            )
         else:
             s, z_train = self.get_data(epoch)
             if z_train is None:
@@ -183,14 +188,14 @@ class ST_GridPlot(object):
 
             self.grid_plot = self.ax.imshow(
                 z_train,
-                origin="lower",
+                origin="lowerleft",
                 cmap=self.cmap,
                 norm=self.norm,
                 aspect="auto",
                 extent=[min_x, max_x, min_y, max_y],
             )
             self.fig.colorbar(
-                self.grid_plot, cax=self.color_bar_ax, orientation="vertical"
+                self.grid_plot, cax=self.color_bar_ax, orientation="horizontal"
             )
 
         return self.grid_plot
@@ -203,32 +208,25 @@ class ST_SliderPlot(object):
         self.unique_vals = unique_vals
         self.callback = callback
 
-    def set_text_format(self):
-        datetime.fromtimestamp(1472860800).strftime("%Y-%m-%d %H")
-        self.slider.valtext.set_text(
-            datetime.fromtimestamp(self.slider.val).strftime("%Y-%m-%d %H")
-        )
-
-    def setup(self, start_val):
-        self.slider = Slider(
+        self.slider = widgets.Slider(
             self.ax,
             "Date",
             np.min(self.unique_vals),
             np.max(self.unique_vals),
-            valinit=start_val,
+            valinit=unique_vals[0],
         )
-        self.set_text_format()
         self.slider.on_changed(self.update)
 
     def update(self, i):
         cur_epoch_i = np.abs(self.unique_vals - i).argmin()
         cur_epoch = self.unique_vals[cur_epoch_i]
-        self.set_text_format()
         self.callback(cur_epoch)
 
 
 class ST_TimeSeriesPlot(object):
-    def __init__(self, columns, fig, ax, train_df, test_df, test_start, grid_plot_flag):
+    def __init__(
+        self, columns, fig, ax, train_df, test_df, test_start, grid_plot_flag
+    ):
         self.columns = columns
         self.fig = fig
         self.ax = ax
@@ -239,6 +237,8 @@ class ST_TimeSeriesPlot(object):
         self.min_test_epoch = np.min(self.train_df[columns["epoch"]])
         self.max_test_epoch = np.max(self.train_df[columns["epoch"]])
         self.test_start_epoch = test_start or self.min_test_epoch
+
+        self.slider = ST_SliderPlot(fig, ax, self.train_df["epoch"], self.update_cur_epoch)
 
     def setup(self):
         pass
@@ -270,26 +270,12 @@ class ST_TimeSeriesPlot(object):
         self.max_line = self.ax.axvline(self.max_test_epoch)
         self.test_start_line = self.ax.axvline(self.test_start_epoch)
 
-    def plot_cur_epoch(self, epoch):
-        self.cur_epoch_line = self.ax.axvline(epoch, ymin=0.25, ymax=1.0)
-
-    def update_cur_epoch(self, epoch):
-        self.cur_epoch_line.remove()
-        self.plot_cur_epoch(epoch)
+        self.slider.update(self.train_df[self.columns["epoch"]][0])
 
     def update(self, _id):
-        try:
-            self.var_plot.remove()
-            self.observed_scatter.remove()
-            self.pred_plot[0].remove()
-            self.min_line.remove()
-            self.max_line.remove()
-        except ValueError as e:
-            # already been removed so need to remove again
-            pass
-
+        cur_epoch = self.slider.val
         self.plot(_id)
-
+        self.update_cur_epoch(cur_epoch)
 
 class ST_ScatterPlot(object):
     def __init__(self, columns, fig, ax, grid_plot, grid_plot_flag, callback, train_df):
@@ -304,15 +290,14 @@ class ST_ScatterPlot(object):
         if grid_plot_flag:
             self.norm = grid_plot.norm
         else:
-            print("min: ", np.min(self.train_df[self.columns["pred"]]))
-            print("max: ", np.max(self.train_df[self.columns["pred"]]))
             self.norm = matplotlib.colors.Normalize(
-                vmin=np.min(self.train_df[self.columns["pred"]]), vmax=1000
+                vmin=np.min(self.train_df[self.columns["pred"]]), vmax=np.max(self.train_df[self.columns["pred"]])
             )
 
         self.callback = callback
 
         self.cur_epoch = None
+        self.cur_id = None
 
     def setup(self):
         self.fig.canvas.mpl_connect("button_release_event", self.on_plot_hover)
@@ -323,7 +308,7 @@ class ST_ScatterPlot(object):
         )
         dists = np.sum((d - p) ** 2, axis=1)
         i = np.argmin(dists)
-        #if dists[i] <= 1e-4:
+        # if dists[i] <= 1e-4:
         if dists[i] <= 0.02:
             return self.train_df.iloc[i][self.columns["id"]]
         else:
@@ -407,7 +392,6 @@ class SpaceTimeVisualise(object):
 
         self.start_epoch = self.unique_epochs[-1]
         self.start_id = self.unique_ids[0]
-
     def update_timeseries(self, _id):
         self.time_series_plot.update(_id)
         self.val_scatter_plot.update_active(_id)
@@ -420,25 +404,18 @@ class SpaceTimeVisualise(object):
 
         self.time_series_plot.update_cur_epoch(epoch)
         self.val_scatter_plot.update(epoch)
-
+    
     def show(self):
-        self.fig = plt.figure(figsize=(12, 6))
+        self.fig, self.axs = plt.subplots(
+            3, 2, figsize=(12, 6), gridspec_kw={"width_ratios": [1, 0.2], "height_ratios": [1, 1]}
+        )
 
-        self.gs = matplotlib.gridspec.GridSpec(12, 4, wspace=0.25, hspace=0.25)
-        self.grid_plot_1_ax = self.fig.add_subplot(
-            self.gs[0:7, 0:2]
-        )  # first row, first col
-        self.grid_plot_2_ax = self.fig.add_subplot(
-            self.gs[0:7, 2:4]
-        )  # first row, second col
-        self.epoch_slider_ax = self.fig.add_subplot(
-            self.gs[7, 1:3]
-        )  # first row, second col
-        self.time_series_ax = self.fig.add_subplot(self.gs[8:11, :])  # full second row
-        self.scale_slider_ax = self.fig.add_subplot(
-            self.gs[11, 1:3]
-        )  # first row, second col
-
+        self.gs = self.fig.add_gridspec(12, 4, wspace=0.25, hspace=0.25)
+        self.grid_plot_1_ax = self.axs[0, 0]
+        self.grid_plot_2_ax = self.axs[0, 1]
+        self.epoch_slider_ax = self.axs[1, 0]
+        self.time_series_ax = self.axs[2, 0]
+        self.scale_slider_ax = self.axs[2, 1]
         if self.grid_plot_flag:
             self.val_grid_plot = ST_GridPlot(
                 self.columns,
@@ -498,7 +475,6 @@ class SpaceTimeVisualise(object):
         )
         self.time_series_plot.setup()
 
-
         if self.grid_plot_flag:
             self.val_grid_plot.plot(self.start_epoch)
             self.var_grid_plot.plot(self.start_epoch)
@@ -510,9 +486,6 @@ class SpaceTimeVisualise(object):
 
         self.val_scatter_plot.plot_active(self.start_id)
 
-        if self.sat_df is not None:
-            self.time_series_plot.ax.scatter(self.sat_df['epoch'], self.sat_df[self.columns['observed']], alpha=0.4)
-
+        self.slider_plot.on_changed(self.update_epoch)
 
         plt.show()
-
