@@ -279,14 +279,18 @@ class ST_TimeSeriesPlot(object):
 
         self.slider.update(self.train_df[self.columns["epoch"]][0])
 
+    def plot_cur_epoch(self, epoch):
+        self.cur_epoch_line = self.ax.axvline(epoch, ymin=0.25, ymax=1.0)
+
     def update(self, _id):
         cur_epoch = self.slider.val
         self.plot(_id)
         self.update_cur_epoch(cur_epoch)
 
-    def update_cur_epoch(self, cur_epoch):
+    def update_cur_epoch(self, cur_epoch, _id):
         self.slider.val = cur_epoch
         self.ax.set_xlabel(f"Epoch [{cur_epoch}]")
+        self.plot(_id)
 
 class ST_ScatterPlot(object):
     def __init__(self, columns, fig, ax, grid_plot, grid_plot_flag, callback, train_df):
@@ -302,6 +306,8 @@ class ST_ScatterPlot(object):
             self.norm = grid_plot.norm
         else:
             self.norm = matplotlib.colors.Normalize(
+                print("min: ", np.min(self.train_df[self.columns["pred"]]))
+                print("max: ", np.max(self.train_df[self.columns["pred"]]))
                 vmin=np.min(self.train_df[self.columns["pred"]]), vmax=np.max(self.train_df[self.columns["pred"]])
             )
 
