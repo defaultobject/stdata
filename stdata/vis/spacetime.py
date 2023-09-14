@@ -392,9 +392,10 @@ class SpaceTimeVisualise(object):
 
         self.start_epoch = self.unique_epochs[-1]
         self.start_id = self.unique_ids[0]
-    def update_timeseries(self, _id):
-        self.time_series_plot.update(_id)
-        self.val_scatter_plot.update_active(_id)
+
+    def update_timeseries(self):
+        self.time_series_plot.update()
+        self.val_scatter_plot.update_active()
         self.fig.canvas.draw_idle()
 
     def update_epoch(self, epoch):
@@ -405,17 +406,24 @@ class SpaceTimeVisualise(object):
         self.time_series_plot.update_cur_epoch(epoch)
         self.val_scatter_plot.update(epoch)
     
-    def show(self):
-        self.fig, self.axs = plt.subplots(
-            3, 2, figsize=(12, 6), gridspec_kw={"width_ratios": [1, 0.2], "height_ratios": [1, 1]}
-        )
+def show(self):
+        self.fig = plt.figure(figsize=(12, 6))
 
-        self.gs = self.fig.add_gridspec(12, 4, wspace=0.25, hspace=0.25)
-        self.grid_plot_1_ax = self.axs[0, 0]
-        self.grid_plot_2_ax = self.axs[0, 1]
-        self.epoch_slider_ax = self.axs[1, 0]
-        self.time_series_ax = self.axs[2, 0]
-        self.scale_slider_ax = self.axs[2, 1]
+        self.gs = matplotlib.gridspec.GridSpec(12, 4, wspace=0.25, hspace=0.25)
+        self.grid_plot_1_ax = self.fig.add_subplot(
+            self.gs[0:7, 0:2]
+        )  # first row, first col
+        self.grid_plot_2_ax = self.fig.add_subplot(
+            self.gs[0:7, 2:4]
+        )  # first row, second col
+        self.epoch_slider_ax = self.fig.add_subplot(
+            self.gs[7, 1:3]
+        )  # first row, second col
+        self.time_series_ax = self.fig.add_subplot(self.gs[8:11, :])  # full second row
+        self.scale_slider_ax = self.fig.add_subplot(
+            self.gs[11, 1:3]
+        )  # first row, second col
+
         if self.grid_plot_flag:
             self.val_grid_plot = ST_GridPlot(
                 self.columns,
