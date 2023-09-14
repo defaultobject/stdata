@@ -49,6 +49,7 @@ def plot_polygon_collection(
     ax.add_collection(patches, autolim=True)
     ax.autoscale_view()
     return patches
+
 class ST_GridPlot(object):
     def __init__(
         self,
@@ -58,7 +59,7 @@ class ST_GridPlot(object):
         ax,
         train_df,
         test_df,
-        cax_on_right,
+        cax_on_right=True,
         norm_on_training=True,
         label="",
         geopandas_flag=False,
@@ -74,6 +75,8 @@ class ST_GridPlot(object):
         self.right_flag = cax_on_right
         self.label = label
         self.cmap = None
+        self.grid_plot = None
+
     def get_spatial_slice(self, epoch):
         s = self.test_df[self.test_df[self.columns["epoch"]] == epoch]
         if len(s) == 0:
@@ -83,6 +86,7 @@ class ST_GridPlot(object):
             s[self.columns["y"]].astype(np.float32),
             s[self.columns[self.col]].astype(np.float32),
         )
+
     def get_data(self, epoch):
         x_train, y_train, z_train = self.get_spatial_slice(epoch)
         if x_train is None:
@@ -98,6 +102,7 @@ class ST_GridPlot(object):
         z_train = z_train[grid_index]
         z_train = (z_train).reshape(n, n)
         return s, z_train
+
     def setup(self):
         df = self.test_df
         if self.norm_on_training:
@@ -107,6 +112,7 @@ class ST_GridPlot(object):
             vmin=np.min(df[self.columns[self.col]]),
             vmax=np.max(df[self.columns[self.col]]),
         )
+
         # setup color bar
         self.divider = make_axes_locatable(self.ax)
         dir_str = "left"
@@ -134,10 +140,8 @@ class ST_GridPlot(object):
                     self.grid_plot.set_data(z_train)
                 else:
                     self.plot(epoch)
-        if hasattr(self, "grid_plot"):
-            return self.grid_plot
-        else:
-            return None
+        self.fig.canvas.draw()
+
     def plot(self, epoch):
         if self.geopandas_flag:
             df = self.test_df[self.test_df[self.columns["epoch"]] == epoch]
@@ -169,7 +173,10 @@ class ST_GridPlot(object):
             self.fig.colorbar(
                 self.grid_plot, cax=self.color_bar_ax, orientation="vertical"
             )
+        self.ax.set_title(f"Epoch {epoch} {self.label}")
         return self.grid_plot
+    
+    
 class ST_SliderPlot(object):
     def __init__(self, fig, ax, unique_vals, callback):
         self.fig = fig
@@ -196,6 +203,9 @@ class ST_SliderPlot(object):
         cur_epoch = self.unique_vals[cur_epoch_i]
         self.set_text_format()
         self.callback(cur_epoch)
+
+
+
 class ST_TimeSeriesPlot(object):
     def __init__(self, columns, fig, ax, train_df, test_df, test_start, grid_plot_flag):
         self.columns = columns
@@ -362,7 +372,6 @@ class SpaceTimeVisualise(object):
     def update_epoch(self, epoch):
         if self.grid_plot_flag:
             self.val_grid_plot.update(epoch)
-            self.var_grid_plot.update(epoch)
         self.time_series_plot.update_cur_epoch(epoch)
         self.val_scatter_plot.update(epoch)
 
