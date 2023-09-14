@@ -268,14 +268,14 @@ class ST_TimeSeriesPlot(object):
     def plot(self, _id):
         epochs, var, pred, observed = self.get_time_series(_id, self.train_df)
 
-        self.var_plot = self.ax.fill_between(epochs, pred - 1.96*np.sqrt(var), pred + 1.96*np.sqrt(var))
-        self.observed_scatter = self.ax.scatter(epochs, observed)
-        self.pred_plot = self.ax.plot(epochs, pred)
+        self.var_plot = self.ax.fill_between(epochs, pred - 1.96*np.sqrt(var), pred + 1.96*np.sqrt(var), alpha=0.3)
+        self.observed_scatter = self.ax.scatter(epochs, observed, alpha=0.5)
+        self.pred_plot = self.ax.plot(epochs, pred, linewidth=2)
         self.ax.set_xlim([self.min_test_epoch, self.max_test_epoch])
 
-        self.min_line = self.ax.axvline(self.min_test_epoch)
-        self.max_line = self.ax.axvline(self.max_test_epoch)
-        self.test_start_line = self.ax.axvline(self.test_start_epoch)
+        self.min_line = self.ax.axvline(self.min_test_epoch, color="grey", linestyle="--")
+        self.max_line = self.ax.axvline(self.max_test_epoch, color="grey", linestyle="--")
+        self.test_start_line = self.ax.axvline(self.test_start_epoch, color="grey", linestyle="--")
 
         self.slider.update(self.train_df[self.columns["epoch"]][0])
 
@@ -283,6 +283,10 @@ class ST_TimeSeriesPlot(object):
         cur_epoch = self.slider.val
         self.plot(_id)
         self.update_cur_epoch(cur_epoch)
+
+    def update_cur_epoch(self, cur_epoch):
+        self.slider.val = cur_epoch
+        self.ax.set_xlabel(f"Epoch [{cur_epoch}]")
 
 class ST_ScatterPlot(object):
     def __init__(self, columns, fig, ax, grid_plot, grid_plot_flag, callback, train_df):
