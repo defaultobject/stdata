@@ -200,7 +200,7 @@ class ST_GridPlot(object):
 
         return self.grid_plot
     
-    class ST_SliderPlot(object):
+class ST_SliderPlot(object):
         def __init__(self, fig, ax, unique_vals, callback):
             self.fig = fig
             self.ax = ax
