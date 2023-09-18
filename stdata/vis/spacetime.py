@@ -261,6 +261,7 @@ class ST_TimeSeriesPlot(object):
             self.max_line.remove()
         except ValueError as e:
             # already been removed so need to remove again
+            print(e)
             pass
 
         self.plot(_id)
@@ -372,6 +373,7 @@ class SpaceTimeVisualise(object):
     def update_epoch(self, epoch):
         if self.grid_plot_flag:
             self.val_grid_plot.update(epoch)
+            self.var_grid_plot.update(epoch)
         self.time_series_plot.update_cur_epoch(epoch)
         self.val_scatter_plot.update(epoch)
 
