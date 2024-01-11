@@ -20,7 +20,7 @@ def plot_polygon_collection(
     edgecolor=None,
     alpha=1.0,
     linewidth=1.0,
-    **kwargs
+    **kwargs,
 ):
     """Plot a collection of Polygon geometries"""
     patches = []
@@ -39,7 +39,7 @@ def plot_polygon_collection(
         edgecolor=edgecolor,
         alpha=alpha,
         norm=norm,
-        **kwargs
+        **kwargs,
     )
 
     if values is not None:
@@ -49,6 +49,7 @@ def plot_polygon_collection(
     ax.add_collection(patches, autolim=True)
     ax.autoscale_view()
     return patches
+
 
 class ST_GridPlot(object):
     def __init__(
@@ -122,7 +123,6 @@ class ST_GridPlot(object):
 
     def update(self, epoch):
         if self.geopandas_flag:
-
             # If grid_plot is init with zero patches then we need to create them
             if self.grid_plot is None:
                 self.plot(epoch)
@@ -175,19 +175,21 @@ class ST_GridPlot(object):
             )
         self.ax.set_title(f"Epoch {epoch} {self.label}")
         return self.grid_plot
-    
-    
+
+
 class ST_SliderPlot(object):
     def __init__(self, fig, ax, unique_vals, callback):
         self.fig = fig
         self.ax = ax
         self.unique_vals = unique_vals
         self.callback = callback
+
     def set_text_format(self):
         datetime.fromtimestamp(1472860800).strftime("%Y-%m-%d %H")
         self.slider.valtext.set_text(
             datetime.fromtimestamp(self.slider.val).strftime("%Y-%m-%d %H")
         )
+
     def setup(self, start_val):
         self.slider = Slider(
             self.ax,
@@ -198,12 +200,12 @@ class ST_SliderPlot(object):
         )
         self.set_text_format()
         self.slider.on_changed(self.update)
+
     def update(self, i):
         cur_epoch_i = np.abs(self.unique_vals - i).argmin()
         cur_epoch = self.unique_vals[cur_epoch_i]
         self.set_text_format()
         self.callback(cur_epoch)
-
 
 
 class ST_TimeSeriesPlot(object):
@@ -223,8 +225,7 @@ class ST_TimeSeriesPlot(object):
     def get_time_series(self, _id, data):
         d = self.train_df[self.train_df[self.columns["id"]] == _id]
 
-        print(f'Plotting timeseries: {_id}')
-
+        print(f"Plotting timeseries: {_id}")
 
         d = d.sort_values(by=self.columns["epoch"])
 
@@ -233,11 +234,13 @@ class ST_TimeSeriesPlot(object):
         pred = d[self.columns["pred"]].astype(np.float32)
         observed = d[self.columns["observed"]].astype(np.float32)
         return epochs, var, pred, observed
-    
+
     def plot(self, _id):
         epochs, var, pred, observed = self.get_time_series(_id, self.train_df)
 
-        self.var_plot = self.ax.fill_between(epochs, pred - 1.96*np.sqrt(var), pred + 1.96*np.sqrt(var))
+        self.var_plot = self.ax.fill_between(
+            epochs, pred - 1.96 * np.sqrt(var), pred + 1.96 * np.sqrt(var)
+        )
         self.observed_scatter = self.ax.scatter(epochs, observed)
         self.pred_plot = self.ax.plot(epochs, pred)
         self.ax.set_xlim([self.min_test_epoch, self.max_test_epoch])
@@ -265,6 +268,8 @@ class ST_TimeSeriesPlot(object):
             pass
 
         self.plot(_id)
+
+
 class ST_ScatterPlot(object):
     def __init__(self, columns, fig, ax, grid_plot, grid_plot_flag, callback, train_df):
         self.columns = columns
@@ -283,25 +288,29 @@ class ST_ScatterPlot(object):
 
         self.callback = callback
         self.cur_epoch = None
+
     def setup(self):
         self.fig.canvas.mpl_connect("button_release_event", self.on_plot_hover)
+
     def get_closest_observed(self, p):
         d = np.array(self.train_df[[self.columns["x"], self.columns["y"]]]).astype(
             np.float32
         )
         dists = np.sum((d - p) ** 2, axis=1)
         i = np.argmin(dists)
-        #if dists[i] <= 1e-4:
+        # if dists[i] <= 1e-4:
         if dists[i] <= 0.02:
             return self.train_df.iloc[i][self.columns["id"]]
         else:
             return None
+
     def on_plot_hover(self, event):
         if True or event.inaxes is self.ax:
             p = event.xdata, event.ydata
             _id = self.get_closest_observed(p)
             if _id is not None:
                 self.callback(_id)
+
     def get_spatial_slice(self, epoch, data, _id=None):
         s = data[data[self.columns["epoch"]] == epoch]
         if _id:
@@ -311,22 +320,26 @@ class ST_ScatterPlot(object):
             s[self.columns["y"]].astype(np.float32),
             s[self.columns["pred"]].astype(np.float32),
         )
+
     def plot(self, epoch):
         self.cur_epoch = epoch
         x, y, z = self.get_spatial_slice(epoch, self.train_df)
         self.scatter = self.ax.scatter(
             x, y, c=z, norm=self.norm, cmap=self.cmap, edgecolors="w"
         )
+
     def plot_active(self, _id):
         self.cur_id = _id
         x, y, z = self.get_spatial_slice(self.cur_epoch, self.train_df, _id)
         self.active_scatter = self.ax.scatter(
             x, y, c=z, norm=self.norm, cmap=self.cmap, edgecolors="y"
         )
+
     def update(self, epoch):
         self.scatter.remove()
         self.plot(epoch)
         self.update_active(self.cur_id)
+
     def update_active(self, _id):
         self.cur_id = _id
         self.active_scatter.remove()
@@ -334,7 +347,9 @@ class ST_ScatterPlot(object):
 
 
 class SpaceTimeVisualise(object):
-    def __init__(self, train_df, test_df, sat_df=None, geopandas_flag=True, test_start=None):
+    def __init__(
+        self, train_df, test_df, sat_df=None, geopandas_flag=True, test_start=None
+    ):
         columns = {
             "id": "id",
             "epoch": "epoch",
@@ -449,17 +464,26 @@ class SpaceTimeVisualise(object):
         )
         self.time_series_plot.setup()
 
-
         if self.grid_plot_flag:
             self.val_grid_plot.plot(self.start_epoch)
             self.var_grid_plot.plot(self.start_epoch)
+
         self.val_scatter_plot.plot(self.start_epoch)
+
         self.time_series_plot.plot_cur_epoch(self.start_epoch)
         self.time_series_plot.plot(self.start_id)
+
         self.val_scatter_plot.plot_active(self.start_id)
 
         if self.sat_df is not None:
-            self.time_series_plot.ax.scatter(self.sat_df['epoch'], self.sat_df[self.columns['observed']], alpha=0.4)
+            self.time_series_plot.ax.scatter(
+                self.sat_df["epoch"], self.sat_df[self.columns["observed"]], alpha=0.4
+            )
 
+        # Add a vertical line at the end of training time
+        self.time_series_ax.axvline(
+            self.max_time, color="red", linestyle="--", label="End of Training"
+        )
+        self.time_series_ax.legend()
 
         plt.show()
