@@ -370,7 +370,7 @@ class SpaceTimeVisualise(object):
 
         self.min_time = np.min(self.train_df[columns["epoch"]])
         self.max_time = np.max(self.train_df[columns["epoch"]])
-
+        self.min_test_time = np.min(self.test_df[columns["epoch"]])
         if test_start:
             self.test_start = test_start
         else:
@@ -482,7 +482,7 @@ class SpaceTimeVisualise(object):
 
         # Add a vertical line at the end of training time
         self.time_series_ax.axvline(
-            self.max_time, color="red", linestyle="--", label="End of Training"
+            self.min_test_time, color="red", linestyle="--", label="End of Training"
         )
         self.time_series_ax.legend()
 
