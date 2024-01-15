@@ -351,7 +351,6 @@ class SpaceTimeVisualise(object):
         self,
         train_df,
         test_df,
-        train_end,
         sat_df=None,
         geopandas_flag=True,
         test_start=None,
@@ -371,7 +370,6 @@ class SpaceTimeVisualise(object):
         self.train_df = train_df
         self.test_df = test_df
         self.sat_df = sat_df
-        self.train_end = train_end
 
         self.grid_plot_flag = not (self.test_df is None)
 
