@@ -348,7 +348,13 @@ class ST_ScatterPlot(object):
 
 class SpaceTimeVisualise(object):
     def __init__(
-        self, train_df, test_df, sat_df=None, geopandas_flag=True, test_start=None
+        self,
+        train_df,
+        test_df,
+        train_end,
+        sat_df=None,
+        geopandas_flag=True,
+        test_start=None,
     ):
         columns = {
             "id": "id",
@@ -365,6 +371,7 @@ class SpaceTimeVisualise(object):
         self.train_df = train_df
         self.test_df = test_df
         self.sat_df = sat_df
+        self.train_end = train_end
 
         self.grid_plot_flag = not (self.test_df is None)
 
@@ -481,7 +488,7 @@ class SpaceTimeVisualise(object):
 
         # Add a vertical line at the end of training time
         self.time_series_ax.axvline(
-            self.start_epoch, color="red", linestyle="--", label="End of Training"
+            self.train_end, color="red", linestyle="--", label="End of Training"
         )
         self.time_series_ax.legend()
 
