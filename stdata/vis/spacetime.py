@@ -488,7 +488,7 @@ class SpaceTimeVisualise(object):
 
         # Add a vertical line at the end of training time
         self.time_series_ax.axvline(
-            self.train_end, color="red", linestyle="--", label="End of Training"
+            self.test_start, color="red", linestyle="--", label="End of Training"
         )
         self.time_series_ax.legend()
 
