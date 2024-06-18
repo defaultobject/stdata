@@ -449,6 +449,8 @@ class SpaceTimeVisualise(object):
         )
         self.time_series_plot.setup()
 
+        if self.sat_df is not None:
+            self.time_series_plot.ax.scatter(self.sat_df['epoch'], self.sat_df[self.columns['observed']], alpha=0.4)
 
         if self.grid_plot_flag:
             self.val_grid_plot.plot(self.start_epoch)
@@ -457,9 +459,6 @@ class SpaceTimeVisualise(object):
         self.time_series_plot.plot_cur_epoch(self.start_epoch)
         self.time_series_plot.plot(self.start_id)
         self.val_scatter_plot.plot_active(self.start_id)
-
-        if self.sat_df is not None:
-            self.time_series_plot.ax.scatter(self.sat_df['epoch'], self.sat_df[self.columns['observed']], alpha=0.4)
 
 
         plt.show()
