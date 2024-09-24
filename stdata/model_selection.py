@@ -129,7 +129,6 @@ def spatial_k_fold_generator(df, num_folds, group_col='group'):
     """ A wrapper so that spatial k fold can be used with the same syntax as sklearn k fold"""
     class _gen():
         def split(self, df_to_split):
-            df_to_split = np.array(df_to_split)
             for k in range(num_folds):
                 train_index = (df[group_col] != k)
                 test_index = (df[group_col] == k)
