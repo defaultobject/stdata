@@ -8,6 +8,8 @@ from .feature_extraction import _get_unique_spatial_points
 import sklearn
 from sklearn import cluster
 from sklearn.metrics import pairwise_distances
+from scipy.spatial.distance import cdist
+from scipy.optimize import linear_sum_assignment
 
 from tqdm import tqdm
 
@@ -129,7 +131,6 @@ def spatial_k_fold_generator(df, num_folds, group_col='group'):
     """ A wrapper so that spatial k fold can be used with the same syntax as sklearn k fold"""
     class _gen():
         def split(self, df_to_split):
-            df_to_split = np.array(df_to_split)
             for k in range(num_folds):
                 train_index = (df[group_col] != k)
                 test_index = (df[group_col] == k)
@@ -138,90 +139,36 @@ def spatial_k_fold_generator(df, num_folds, group_col='group'):
 
     return _gen()
 
-def _equal_k_means(df, n_clusters=5, verbose=False):
+
+def _equal_k_means(df, n_clusters, verbose=False):
+    """ 
+    Taken from Eyal Shulman implementation https://stackoverflow.com/questions/5452576/k-means-algorithm-variation-with-equal-cluster-size 
+    
+    Edited to make it work with slightly uneven clusters
     """
-    This uses a greedy algorithm, and so although each cluster will be equal, it may not be spatially aligned.
-    """
-    df = df.copy().reset_index()
+
+    df = df.copy()
+    points = np.array(df[['lat', 'lon']])
+    n_points = points.shape[0]
     
-    df['__index'] = df.index
+    num_to_remove = int(abs((n_points-n_clusters*np.ceil(n_points/n_clusters))))
+    points_removed = points[:num_to_remove]
+    X = points[num_to_remove:n_points]
+
+    cluster_size = int(np.ceil(len(X)/n_clusters))
+    kmeans = cluster.KMeans(n_clusters)
+    kmeans.fit(X)
+    k_centers = kmeans.cluster_centers_
+    centers = k_centers
+    centers = centers.reshape(-1, 1, X.shape[-1]).repeat(cluster_size, 1).reshape(-1, X.shape[-1])
+    distance_matrix = cdist(X, centers)
+    clusters = linear_sum_assignment(distance_matrix)[1]//cluster_size
     
-    X = np.array(df[['lat', 'lon']])
-    
-    m = cluster.KMeans(n_clusters=n_clusters).fit(X)
-    
-    dists = pairwise_distances(m.cluster_centers_, X)
-    
-    clusters = {c: [] for c in range(n_clusters)}
-    
-    assigned_ids = []
-
-    N = X.shape[0]
-
-    dists_all = [dists[c].argsort() for c in range(n_clusters)]
-    
-    # each step assigns n_cluster points to assigned_ids
-    num_iters = int(np.ceil(N/float(n_clusters)))
-
-    if verbose:
-        bar = tqdm(total=num_iters)
-
-    for i in range(num_iters):
-        for c in range(n_clusters):
-
-            # find closest point
-            all_closest_points = dists_all[c]
-            
-            closest_points = all_closest_points[~np.isin(all_closest_points,assigned_ids)]
-            closest_point = closest_points[0]
-            closest_point_dist = dists[c][closest_point]
-            
-            # find the closest cluster for closest point
-            closest_cluster = dists[:, closest_point].argsort()[0]
-            
-            if c != closest_cluster:
-                # find assigned point in cluster that is closest to c
-                closest_points_in_new_cluster = dists[c][
-                    clusters[closest_cluster]
-                ].argsort()
-                
-                if len(closest_points_in_new_cluster) == 0:
-                    clusters[c].append(closest_point)
-                else:
-                    closest_point_in_new_cluster = clusters[closest_cluster][closest_points_in_new_cluster[0]]
-
-                    if dists[c][closest_point_in_new_cluster] < closest_point_dist:
-                        clusters[closest_cluster].remove(closest_point_in_new_cluster)
-                        clusters[closest_cluster].append(closest_point)
-                        clusters[c].append(closest_point_in_new_cluster)
-                    else:
-                        # do nothing
-                        clusters[c].append(closest_point)
-            else:
-                clusters[c].append(closest_point)
-
-            assigned_ids.append(closest_point)
-            
-
-            if len(assigned_ids) == N:
-                break
-                
-        if len(assigned_ids) == N:
-            break
-
-        if verbose:
-         bar.update(1)
-            
-    cluster_df = pd.DataFrame(
-        [[i, c] for c, a in clusters.items() for i in a], 
-        columns=['__index_cluster', 'label']
-    )
-    
-    df = df.merge(cluster_df, left_on=['__index'], right_on=['__index_cluster'], how='left', suffixes=[None, '_y'])
-    df = df.drop(columns=['__index', '__index_cluster'])
-
-    df['k_means_label'] = m.labels_    
-    
+    # add points removed back to there closest points
+    distance_matrix = cdist(points_removed, k_centers)
+    points_to_add_back = np.argmax(distance_matrix, axis=1)
+    clusters = np.hstack([points_to_add_back, clusters])
+    df['label'] = clusters
     return df
 
 def equal_spatial_clusters(df, n_clusters=5, lat_col='lat', lon_col='lon', group_col='label', verbose=False):
