@@ -149,77 +149,7 @@ def _equal_k_means(df, n_clusters=5, verbose=False):
     
     m = cluster.KMeans(n_clusters=n_clusters).fit(X)
     
-    dists = pairwise_distances(m.cluster_centers_, X)
-    
-    clusters = {c: [] for c in range(n_clusters)}
-    
-    assigned_ids = []
-
-    N = X.shape[0]
-
-    dists_all = [dists[c].argsort() for c in range(n_clusters)]
-    
-    # each step assigns n_cluster points to assigned_ids
-    num_iters = int(np.ceil(N/float(n_clusters)))
-
-    if verbose:
-        bar = tqdm(total=num_iters)
-
-    for i in range(num_iters):
-        for c in range(n_clusters):
-
-            # find closest point
-            all_closest_points = dists_all[c]
-            
-            closest_points = all_closest_points[~np.isin(all_closest_points,assigned_ids)]
-            closest_point = closest_points[0]
-            closest_point_dist = dists[c][closest_point]
-            
-            # find the closest cluster for closest point
-            closest_cluster = dists[:, closest_point].argsort()[0]
-            
-            if c != closest_cluster:
-                # find assigned point in cluster that is closest to c
-                closest_points_in_new_cluster = dists[c][
-                    clusters[closest_cluster]
-                ].argsort()
-                
-                if len(closest_points_in_new_cluster) == 0:
-                    clusters[c].append(closest_point)
-                else:
-                    closest_point_in_new_cluster = clusters[closest_cluster][closest_points_in_new_cluster[0]]
-
-                    if dists[c][closest_point_in_new_cluster] < closest_point_dist:
-                        clusters[closest_cluster].remove(closest_point_in_new_cluster)
-                        clusters[closest_cluster].append(closest_point)
-                        clusters[c].append(closest_point_in_new_cluster)
-                    else:
-                        # do nothing
-                        clusters[c].append(closest_point)
-            else:
-                clusters[c].append(closest_point)
-
-            assigned_ids.append(closest_point)
-            
-
-            if len(assigned_ids) == N:
-                break
-                
-        if len(assigned_ids) == N:
-            break
-
-        if verbose:
-         bar.update(1)
-            
-    cluster_df = pd.DataFrame(
-        [[i, c] for c, a in clusters.items() for i in a], 
-        columns=['__index_cluster', 'label']
-    )
-    
-    df = df.merge(cluster_df, left_on=['__index'], right_on=['__index_cluster'], how='left', suffixes=[None, '_y'])
-    df = df.drop(columns=['__index', '__index_cluster'])
-
-    df['k_means_label'] = m.labels_    
+    df['label'] = m.labels_    
     
     return df
 
