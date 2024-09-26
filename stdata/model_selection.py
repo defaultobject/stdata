@@ -8,6 +8,8 @@ from .feature_extraction import _get_unique_spatial_points
 import sklearn
 from sklearn import cluster
 from sklearn.metrics import pairwise_distances
+from scipy.spatial.distance import cdist
+from scipy.optimize import linear_sum_assignment
 
 from tqdm import tqdm
 
@@ -137,20 +139,36 @@ def spatial_k_fold_generator(df, num_folds, group_col='group'):
 
     return _gen()
 
-def _equal_k_means(df, n_clusters=5, verbose=False):
+
+def _equal_k_means(df, n_clusters, verbose=False):
+    """ 
+    Taken from Eyal Shulman implementation https://stackoverflow.com/questions/5452576/k-means-algorithm-variation-with-equal-cluster-size 
+    
+    Edited to make it work with slightly uneven clusters
     """
-    This uses a greedy algorithm, and so although each cluster will be equal, it may not be spatially aligned.
-    """
-    df = df.copy().reset_index()
+
+    df = df.copy()
+    points = np.array(df[['lat', 'lon']])
+    n_points = points.shape[0]
     
-    df['__index'] = df.index
+    num_to_remove = int(abs((n_points-n_clusters*np.ceil(n_points/n_clusters))))
+    points_removed = points[:num_to_remove]
+    X = points[num_to_remove:n_points]
+
+    cluster_size = int(np.ceil(len(X)/n_clusters))
+    kmeans = cluster.KMeans(n_clusters)
+    kmeans.fit(X)
+    k_centers = kmeans.cluster_centers_
+    centers = k_centers
+    centers = centers.reshape(-1, 1, X.shape[-1]).repeat(cluster_size, 1).reshape(-1, X.shape[-1])
+    distance_matrix = cdist(X, centers)
+    clusters = linear_sum_assignment(distance_matrix)[1]//cluster_size
     
-    X = np.array(df[['lat', 'lon']])
-    
-    m = cluster.KMeans(n_clusters=n_clusters).fit(X)
-    
-    df['label'] = m.labels_    
-    
+    # add points removed back to there closest points
+    distance_matrix = cdist(points_removed, k_centers)
+    points_to_add_back = np.argmax(distance_matrix, axis=1)
+    clusters = np.hstack([points_to_add_back, clusters])
+    df['label'] = clusters
     return df
 
 def equal_spatial_clusters(df, n_clusters=5, lat_col='lat', lon_col='lon', group_col='label', verbose=False):
